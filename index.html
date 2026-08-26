@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portal de Asesores - Cartera y Pagos</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        :root {
+            --primary-color: #0056b3;
+            --bg-color: #f4f7f6;
+            --border-color: #ddd;
+            --btn-hover: #004494;
+            --card-bg: #ffffff;
+            --tab-bg: #e9ecef;
+            --tab-active: #0056b3;
+        }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: var(--bg-color); margin: 0; padding: 15px; color: #333; }
+        
+        .container { 
+            width: 100%; max-width: 99%; box-sizing: border-box; margin: auto; 
+            background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); min-height: 80vh; 
+        }
+        
+        h2 { margin-top: 0; color: var(--primary-color); border-bottom: 2px solid var(--primary-color); padding-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+        .btn-volver { background-color: #6c757d; color: white; border: none; padding: 8px 15px; font-size: 14px; font-weight: bold; border-radius: 4px; cursor: pointer; display: none; }
+        .btn-volver:hover { background-color: #5a6268; }
+        #vista-asesores { padding: 20px 0; }
+        .mensaje-carga { text-align: center; font-size: 18px; color: #555; font-weight: bold; margin-top: 40px; }
+        .grid-asesores { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 20px; margin-top: 20px; }
+        .tarjeta-asesor { background: linear-gradient(135deg, #ffffff, #fdfdfd); border: 1px solid var(--border-color); border-left: 5px solid var(--primary-color); padding: 25px 20px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.05); text-align: center; cursor: pointer; transition: all 0.3s ease; }
+        .tarjeta-asesor:hover { transform: translateY(-8px); box-shadow: 0 12px 20px rgba(0,86,179,0.15); border-color: var(--primary-color); }
+        .tarjeta-asesor h3 { margin: 0; font-size: 16px; color: #333; text-transform: uppercase; }
+        .icono-usuario { font-size: 40px; margin-bottom: 10px; color: var(--primary-color); }
+        #vista-dashboard { display: none; animation: fadeIn 0.4s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        /* Pestañas */
+        .tabs-container { display: flex; gap: 5px; margin-bottom: 20px; border-bottom: 2px solid var(--border-color); }
+        .tab { padding: 12px 25px; background: var(--tab-bg); color: #555; font-weight: bold; border-radius: 6px 6px 0 0; cursor: pointer; transition: 0.3s; border: 1px solid var(--border-color); border-bottom: none; }
+        .tab:hover { background: #d0d4d8; }
+        .tab.active { background: var(--tab-active); color: white; border-color: var(--tab-active); }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; animation: fadeIn 0.4s; }
+
+        .dashboard-wrapper { display: flex; flex-wrap: wrap; gap: 20px; margin-bottom: 20px; margin-top: 15px; align-items: flex-start; }
+        .card-recaudo { background: linear-gradient(135deg, #0056b3, #004494); color: white; padding: 20px; border-radius: 8px; min-width: 250px; box-shadow: 0 4px 6px rgba(0,0,0,0.15); display: flex; flex-direction: column; justify-content: center; }
+        .card-recaudo h3 { margin: 0 0 10px 0; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; color: #e0e0e0; padding-bottom: 0; }
+        .card-recaudo p { margin: 0; font-size: 28px; font-weight: bold; }
+        
+        .filtros-wrapper { display: flex; flex-wrap: wrap; gap: 15px; background: #e9ecef; padding: 15px; border-radius: 6px; align-items: center; border: 1px solid var(--border-color); flex: 1; }
+        .filtros-wrapper label { font-weight: bold; font-size: 14px; color: #333; margin-right: -5px; }
+        .filtros-wrapper select, .filtros-wrapper input[type="text"] { padding: 8px; border-radius: 4px; border: 1px solid var(--border-color); background: #fff; min-width: 150px; }
+        .btn-guardar { background-color: #28a745; color: white; border: none; padding: 10px 20px; font-size: 14px; font-weight: bold; border-radius: 4px; cursor: pointer; transition: background 0.3s; }
+        .btn-guardar:hover { background-color: #218838; }
+
+        .multi-select { position: relative; min-width: 180px; user-select: none; font-family: sans-serif; }
+        .select-box { padding: 8px 12px; border: 1px solid var(--border-color); border-radius: 4px; background: #fff; cursor: pointer; display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: #333; }
+        .options-container { display: none; position: absolute; top: 100%; left: 0; right: 0; background: #fff; border: 1px solid var(--border-color); z-index: 100; max-height: 200px; overflow-y: auto; border-radius: 4px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-top: 5px; }
+        .option-label { display: flex; align-items: center; padding: 6px 12px; cursor: pointer; font-size: 13px; color: #333; border-bottom: 1px solid #eee; margin: 0; }
+        .option-label:last-child { border-bottom: none; }
+        .option-label:hover { background: #f0f7ff; }
+        .option-label input { margin-right: 8px; cursor: pointer; }
+
+        .table-container { overflow-x: auto; max-height: 650px; border: 1px solid var(--border-color); border-radius: 4px; }
+        table { border-collapse: collapse; width: 100%; }
+        th { background-color: var(--primary-color); color: white; position: sticky; top: 0; z-index: 1; padding: 10px 12px; text-align: left; font-size: 13px; white-space: nowrap; cursor: pointer; user-select: none; transition: background 0.3s; }
+        th:hover { background-color: #004494; } 
+        td { border: 1px solid var(--border-color); padding: 10px 12px; text-align: left; font-size: 13px; vertical-align: middle; white-space: normal; word-wrap: break-word; max-width: 350px; line-height: 1.4; }
+        tr:hover { filter: brightness(0.95); }
+        
+        .alerta-pago { color: #dc3545; font-size: 11px; font-weight: bold; display: block; margin-top: 4px; }
+        .badge-duplicado { background-color: #ffc107; color: #000; padding: 3px 6px; border-radius: 4px; font-size: 10px; margin-left: 8px; font-weight: bold; display: inline-block; vertical-align: middle; }
+        .alerta-consultor { color: #155724; background-color: #d4edda; border: 1px solid #c3e6cb; font-size: 11px; font-weight: bold; display: block; margin-top: 6px; padding: 4px 6px; border-radius: 4px; }
+        .alerta-ya-pago { color: #721c24; background-color: #f8d7da; border: 1px solid #f5c6cb; font-size: 11px; font-weight: bold; display: block; margin-top: 6px; padding: 4px 6px; border-radius: 4px; }
+        
+        .badge-pdp { background-color: #28a745; color: white; padding: 3px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; }
+        .badge-alerta { background-color: #dc3545; color: white; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; display: inline-block; margin-top: 5px;}
+        .badge-grupo { background-color: #17a2b8; color: white; padding: 3px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>
+        <span id="titulo-seccion">Portal de Gestión de Asesores</span>
+        <button id="btn-volver" class="btn-volver" onclick="volverAInicio()">Volver a Asesores</button>
+    </h2>
+
+    <div id="vista-asesores">
+        <div id="mensaje-carga" class="mensaje-carga">Conectando con Supabase... Descargando base de datos. Puede tardar unos segundos.</div>
+        <div id="grid-asesores" class="grid-asesores"></div>
+    </div>
+
+    <div id="vista-dashboard">
+        
+        <!-- Pestañas de Navegación -->
+        <div class="tabs-container">
+            <div class="tab active" onclick="cambiarPestana('tab-cruce', this)">Mis Pagos y Gestiones</div>
+            <div class="tab" onclick="cambiarPestana('tab-seguimiento', this)">Mis Clientes TOP y Prioritarios</div>
+        </div>
+
+        <!-- PESTAÑA 1: CRUCE NORMAL -->
+        <div id="tab-cruce" class="tab-content active">
+            <div class="dashboard-wrapper">
+                <div class="card-recaudo">
+                    <h3>Total Recaudado</h3>
+                    <p id="totalRecaudo">S/ 0.00</p>
+                </div>
+                
+                <div style="margin-left: auto; margin-right: 15px;">
+                     <button class="btn-guardar" onclick="exportarExcelAsesor()">📥 Descargar Excel</button>
+                </div>
+            </div>
+
+            <div class="filtros-wrapper">
+                <label>Buscar:</label>
+                <input type="text" id="filtroDNI" placeholder="Buscar DNI o Nombre...">
+                
+                <label>Filtros:</label>
+                <select id="filtroFecha"><option value="">Todas las Fechas</option></select>
+                <select id="filtroTipificacion"><option value="">Todas las Tipificaciones</option></select>
+                
+                <div class="multi-select" id="multiSelectTramo">
+                    <div class="select-box" id="selectBoxTramo" onclick="toggleTramo(event)">Tramos: Todos <span>▼</span></div>
+                    <div class="options-container" id="opcionesTramo"></div>
+                </div>
+            </div>
+
+            <div class="table-container">
+                <table id="dataTable">
+                    <thead>
+                        <tr>
+                            <th onclick="ordenarAsesor('dni_cliente')">DNI Cliente <span id="sort_dni_cliente"></span></th>
+                            <th onclick="ordenarAsesor('cliente')">Cliente <span id="sort_cliente"></span></th>
+                            <th onclick="ordenarAsesor('monto_pagado')">Monto Pagado <span id="sort_monto_pagado"></span></th>
+                            <th onclick="ordenarAsesor('tipificacion')">Tipificación <span id="sort_tipificacion"></span></th>
+                            <th onclick="ordenarAsesor('observacion')">Observación <span id="sort_observacion"></span></th>
+                            <th onclick="ordenarAsesor('fecha_ingreso')">Fecha Ingreso <span id="sort_fecha_ingreso"></span></th>
+                            <th onclick="ordenarAsesor('fecha_pago')">Fecha Pago <span id="sort_fecha_pago"></span></th>
+                            <th onclick="ordenarAsesor('medio_pago')">Medio de Pago <span id="sort_medio_pago"></span></th>
+                            <th onclick="ordenarAsesor('tramo')">Tramo <span id="sort_tramo"></span></th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- PESTAÑA 2: SEGUIMIENTO VIP DEL ASESOR -->
+        <div id="tab-seguimiento" class="tab-content">
+            <div style="margin-bottom: 15px; font-size: 14px; color: #555;">
+                Estos son tus clientes de las listas TOP y Prioritarios asignados a ti. 
+                Asegúrate de que no tengan la <span style="color:red; font-weight:bold;">Alerta Roja</span> de "Sin Gestión Hoy".
+            </div>
+            
+            <div class="table-container">
+                <table id="tableSeguimiento">
+                    <thead>
+                        <tr>
+                            <th>Grupo</th>
+                            <th>DNI</th>
+                            <th>Cliente</th>
+                            <th>Llamadas por Día</th>
+                            <th>Tipificaciones Históricas</th>
+                            <th>¿Tiene PDP?</th>
+                            <th>¿Pagó? (Monto - Fecha)</th>
+                            <th>Estado / Alerta Diaria</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBodySeguimientoAsesor">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<script>
+    const SUPABASE_URL = "https://kovjtcolyiuuxbeqzdql.supabase.co/rest/v1/cruce_pagos";
+    const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imtvdmp0Y29seWl1dXhiZXF6ZHFsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU5MzQ2OTEsImV4cCI6MjEwMTUxMDY5MX0.mRVNoVM3XUFSvFQ1rk67YF_St13TTESqC4N09OAQYL4";
+
+    let dbData = []; 
+    let datosAsesorActual = []; 
+    let datosFiltradosActuales = []; 
+    
+    window.gestionesVIPCrudas = [];
+
+    let columnaOrdenIndex = "";
+    let ordenAscendenteIndex = true;
+
+    // --- LISTA DE CLIENTES TOP Y PRIORITARIOS ---
+    const clientesVIP = [
+        { dni: "09809502", nombre: "SALVADOR MAYTA FLOR DE MARIA", grupo: "70 Prioritarios" },
+        { dni: "40086199", nombre: "GLADYS MARIBEL VALVERDE CHIMOVEN", grupo: "70 Prioritarios" },
+        { dni: "75591369", nombre: "ANGELA ESTHEFANNY CARRASCO CELIS", grupo: "70 Prioritarios" },
+        { dni: "48723843", nombre: "DANILO ROLIN TUANAMA VALVERDE", grupo: "70 Prioritarios" },
+        { dni: "71573238", nombre: "WILMER ISAIAS CASTILLO HUAYTALLA", grupo: "70 Prioritarios" },
+        { dni: "70205063", nombre: "CARLA NASHELY CARREON CASTREJON", grupo: "70 Prioritarios" },
+        { dni: "44505969", nombre: "URSULA MABEL HUAMAN VILLALOBOS", grupo: "70 Prioritarios" },
+        { dni: "72403213", nombre: "NATALIA GABRIELA MORALES VERA", grupo: "70 Prioritarios" },
+        { dni: "44397918", nombre: "EDER ELEUTERIO TAQUIRI IPURRE", grupo: "70 Prioritarios" },
+        { dni: "03505807", nombre: "GLORIA ISABEL MOGOLLON LOPEZ", grupo: "70 Prioritarios" },
+        { dni: "08627541", nombre: "AGUSTIN OJEDA JARAMILLO", grupo: "70 Prioritarios" },
+        { dni: "41112015", nombre: "MARIA LUZ GONZALES MAIZ", grupo: "70 Prioritarios" },
+        { dni: "41963151", nombre: "ROSA KATHERINE OYOLA CAVERO", grupo: "70 Prioritarios" },
+        { dni: "70706593", nombre: "YESICA MEDALID QUISPE PUMA", grupo: "70 Prioritarios" },
+        { dni: "42334033", nombre: "LUIS VLADIMIR CONTO NUNEZ", grupo: "70 Prioritarios" },
+        { dni: "10104482", nombre: "MARCELA ELIZABETH ESTRADA BAZALAR", grupo: "70 Prioritarios" },
+        { dni: "6947467",  nombre: "CAMACHO LINAN CARMEN PAULA", grupo: "70 Prioritarios" },
+        { dni: "25778065", nombre: "ANGEL EDUARDO LIMO CALDERON", grupo: "70 Prioritarios" },
+        { dni: "47338504", nombre: "LILI YAMALIN DIAZ GALLARDO", grupo: "70 Prioritarios" },
+        { dni: "8263516",  nombre: "RAUL FRANCISCO YARANGA MARTINEZ", grupo: "70 Prioritarios" },
+        { dni: "8392944",  nombre: "MILAGROS MARIA ULLOA FLORES", grupo: "70 Prioritarios" },
+        { dni: "47451050", nombre: "MIRTHA ELIZABETH PANUERA CASTANEDA", grupo: "70 Prioritarios" },
+        { dni: "41894149", nombre: "DISTRIBUCIONES QUISPE SAC", grupo: "70 Prioritarios" },
+        { dni: "46876534", nombre: "BARRIOS SILVA LIZ KARINA", grupo: "70 Prioritarios" },
+        { dni: "10202335", nombre: "IVONNE PAOLA PILCO ORDONEZ", grupo: "70 Prioritarios" },
+        { dni: "43128831", nombre: "ANTONIO BAZAN RIMAYCUNA", grupo: "70 Prioritarios" },
+        { dni: "44939256", nombre: "LISBETH CUEVA HUAMAN", grupo: "70 Prioritarios" },
+        { dni: "75629264", nombre: "CLAUDIA GUILIANA GARCIA ARECHAGA", grupo: "70 Prioritarios" },
+        { dni: "70899630", nombre: "ELIZABETH ZUMAETA GARCIA", grupo: "70 Prioritarios" },
+        { dni: "76289422", nombre: "PILAR NORMA DE LA CRUZ PANEZ", grupo: "70 Prioritarios" },
+        { dni: "75238331", nombre: "MARIA DEL CARMEN ALBITRES DAVALOS", grupo: "70 Prioritarios" },
+        { dni: "46895255", nombre: "DENISSE SILUPU ALTAMIRANO", grupo: "70 Prioritarios" },
+        { dni: "48882834", nombre: "MARIA JUDITH SANCHEZ ORBEGOSO", grupo: "70 Prioritarios" },
+        { dni: "71848477", nombre: "KAROLAY TASHIRA VILLANUEVA PEREZ", grupo: "70 Prioritarios" },
+        { dni: "74762403", nombre: "SANCHEZ GONZALES KARLA SAORY", grupo: "70 Prioritarios" },
+        { dni: "3881601",  nombre: "MERCEDES ABAD SERNAQUE", grupo: "70 Prioritarios" },
+        { dni: "47553532", nombre: "STEFANNY MARGOT CASTILLO SKRINJARIC", grupo: "70 Prioritarios" },
+        { dni: "17574431", nombre: "JOSE LEONCIO ZUNIGA BARRIOS", grupo: "70 Prioritarios" },
+        { dni: "43091141", nombre: "JOSE GIOVANNI FLORES ACUNA", grupo: "70 Prioritarios" },
+        { dni: "17978485", nombre: "MARQUINA FLORES CECILIA", grupo: "70 Prioritarios" },
+        { dni: "17931006", nombre: "SARA MEDALIT ALVAREZ LECCA", grupo: "70 Prioritarios" },
+        { dni: "75900153", nombre: "LAYSSA CORINA BALDERA CULQUICHICON", grupo: "70 Prioritarios" },
+        { dni: "46340752", nombre: "CINTHIA CAROLINA PAPEL SOTO", grupo: "70 Prioritarios" },
+        { dni: "09473609", nombre: "SANTIAGO FERNANDO TEMPLE RODRIGUEZ", grupo: "70 Prioritarios" },
+        { dni: "47933367", nombre: "LESLY PATRICIA IBANEZ SOTO", grupo: "70 Prioritarios" },
+        { dni: "31680871", nombre: "NALLA ISABELL GRANADOS ALVARADO", grupo: "70 Prioritarios" },
+        { dni: "09629292", nombre: "GLORIA ANA LAYNES CERVANTES", grupo: "70 Prioritarios" },
+        { dni: "19220495", nombre: "LIZ VILCHEZ SILVA", grupo: "70 Prioritarios" },
+        { dni: "CE044021302", nombre: "LUISA MELENDREZ RODRIGUEZ", grupo: "70 Prioritarios" },
+        { dni: "15665677", nombre: "MAURA IRMA ALVARADO MENDEZ", grupo: "70 Prioritarios" },
+        { dni: "71896724", nombre: "GIOVANNA GUISELA DIAZ QUISPE", grupo: "70 Prioritarios" },
+        { dni: "75185508", nombre: "FATIMA DEL PILAR DONAYRE BRAVO", grupo: "70 Prioritarios" },
+        { dni: "76737474", nombre: "JEYNER ELVIS MORALES UCEDA", grupo: "70 Prioritarios" },
+        { dni: "70282438", nombre: "BLANCO BALDEON LISSETH ETHEL", grupo: "70 Prioritarios" },
+        { dni: "09837543", nombre: "JUAN JHONNY RAMON CARHUARICRA", grupo: "70 Prioritarios" },
+        { dni: "03319356", nombre: "ALBAN VDA DE CRESPO CRUZ IGNACIA", grupo: "70 Prioritarios" },
+        { dni: "74267690", nombre: "CAROLINE NAYELI RUIZ VITE", grupo: "70 Prioritarios" },
+        { dni: "40952724", nombre: "ARABELLA BEAUTY CENTER S R L", grupo: "70 Prioritarios" },
+        { dni: "47048901", nombre: "PAMELA YOLANDA MENDOZA DELGADO", grupo: "70 Prioritarios" },
+        { dni: "73528858", nombre: "JAZMINE ARACELY QUINTANA ORTIZ", grupo: "70 Prioritarios" },
+        { dni: "72649564", nombre: "TERESA JHOSSELYN GOMEZ RICHE", grupo: "70 Prioritarios" },
+        { dni: "70370872", nombre: "KIMBERLYN BRIGITE SALAS VITE", grupo: "70 Prioritarios" },
+        { dni: "75147444", nombre: "CHACON JULCA ALEXANDRA TATIANA", grupo: "70 Prioritarios" },
+        { dni: "44325544", nombre: "JESUS KARINA CCARHUARUPAY COYLA DE CRUZ", grupo: "70 Prioritarios" },
+        { dni: "75394231", nombre: "GINA ANTONELA RUIZ VITE", grupo: "70 Prioritarios" },
+        { dni: "70160289", nombre: "MULTIMARCAS CAJOAN E I R L", grupo: "70 Prioritarios" },
+        { dni: "74968939", nombre: "JOSE ALONSO GUTIERREZ MAYA", grupo: "70 Prioritarios" },
+        { dni: "75700379", nombre: "PAMELA THAIS QUISPE SOTELO", grupo: "70 Prioritarios" },
+        { dni: "46804785", nombre: "ANALI CABANA CURO", grupo: "70 Prioritarios" },
+        { dni: "46675008", nombre: "MARIA STEFANI ORTIZ LUIS", grupo: "70 Prioritarios" },
+        
+        { dni: "", nombre: "SARA MEDALIT ALVAREZ LECCA", grupo: "TOP A" },
+        { dni: "", nombre: "ADRIANA NICOLE AVILA TORRES", grupo: "TOP A" },
+        { dni: "", nombre: "DANNA JIMENA PASCUAL HUAYANAY", grupo: "TOP A" },
+        { dni: "", nombre: "ROJAS ALBAN SONIA MARIANELLA", grupo: "TOP A" },
+        { dni: "", nombre: "SUSAN MARCELA FERNANDEZ CAMPOS", grupo: "TOP A" },
+        { dni: "", nombre: "YACK FRANK ESCOBAR TURCO", grupo: "TOP A" },
+        { dni: "", nombre: "CONSUELO GUADALUPE MONTOYA SOPLOPUCO", grupo: "TOP A" },
+        { dni: "", nombre: "CLARA LISSETH RIVERA VALLADARES", grupo: "TOP A" },
+        { dni: "", nombre: "GABRIELA MAURA RAMOS ZAMBRANO", grupo: "TOP A" },
+        { dni: "", nombre: "YECELIA CAMARA TARAZONA", grupo: "TOP A" },
+
+        { dni: "", nombre: "HEBER ABEL MORALES VALENCIA", grupo: "TOP B" },
+        { dni: "", nombre: "JULCA CALDERON MARIA ZAIDA", grupo: "TOP B" },
+        { dni: "", nombre: "CHAMORRO VILLAZANA YOLA MIRIAM", grupo: "TOP B" },
+        { dni: "", nombre: "BARDALES URBINA MARIA ESTHER", grupo: "TOP B" },
+        { dni: "", nombre: "ROMERO FLORES MARIA ELENA", grupo: "TOP B" },
+        { dni: "", nombre: "CLAUDIA FIORELA SERNAQUE YOVERA", grupo: "TOP B" },
+        { dni: "", nombre: "SARITA RODRIGUEZ PALACIOS", grupo: "TOP B" },
+        { dni: "", nombre: "ROFSON AGUILAR LOPEZ", grupo: "TOP B" },
+        { dni: "", nombre: "MEJIA DAMIAN JUSTINA AURORA", grupo: "TOP B" },
+        { dni: "", nombre: "GUERRERO BORDA NAVIL LEONOR", grupo: "TOP B" }
+    ];
+
+    document.getElementById('filtroDNI').addEventListener('input', aplicarFiltrosAsesor, false);
+    document.getElementById('filtroFecha').addEventListener('change', aplicarFiltrosAsesor, false);
+    document.getElementById('filtroTipificacion').addEventListener('change', aplicarFiltrosAsesor, false);
+
+    document.addEventListener('DOMContentLoaded', cargarDatosSupabase);
+
+    function cambiarPestana(idTab, elemento) {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        elemento.classList.add('active');
+        document.getElementById(idTab).classList.add('active');
+    }
+
+    function toggleTramo(e) {
+        const container = document.getElementById('opcionesTramo');
+        container.style.display = container.style.display === 'block' ? 'none' : 'block';
+        if(e) e.stopPropagation();
+    }
+    document.addEventListener('click', function(e) {
+        const ms = document.getElementById('multiSelectTramo');
+        if (ms && !ms.contains(e.target)) {
+            const tramoCont = document.getElementById('opcionesTramo');
+            if(tramoCont) tramoCont.style.display = 'none';
+        }
+    });
+
+    function toggleTodosTramos(source) {
+        const checkboxes = document.querySelectorAll('.chk-tramo');
+        checkboxes.forEach(cb => cb.checked = source.checked);
+        aplicarFiltrosAsesor();
+    }
+
+    function formatearFecha(val) {
+        if (!val && val !== 0) return "";
+        let str = String(val).trim();
+        if (str.match(/^\d{4}-\d{2}-\d{2}$/)) return str; 
+        let parts = str.split(/[\/\-]/);
+        if (parts.length === 3) {
+            if (parts[2].length === 4) return `${parts[2]}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`;
+            if (parts[0].length === 4) return `${parts[0]}-${parts[1].padStart(2,'0')}-${parts[2].padStart(2,'0')}`;
+        }
+        return str; 
+    }
+
+    async function cargarDatosSupabase() {
+        const mensajeCarga = document.getElementById('mensaje-carga');
+        const gridAsesores = document.getElementById('grid-asesores');
+
+        try {
+            let dataCruda = [];
+            let offset = 0;
+            const limit = 1000;
+            let fetchMore = true;
+
+            while (fetchMore) {
+                const response = await fetch(`${SUPABASE_URL}?select=*&order=id.asc&offset=${offset}&limit=${limit}`, {
+                    method: 'GET',
+                    headers: {
+                        'apikey': SUPABASE_KEY,
+                        'Authorization': `Bearer ${SUPABASE_KEY}`
+                    }
+                });
+
+                if (!response.ok) throw new Error('Error de conexión con la base de datos');
+                
+                let chunk = await response.json();
+                dataCruda = dataCruda.concat(chunk);
+
+                if (chunk.length < limit) {
+                    fetchMore = false; 
+                } else {
+                    offset += limit;
+                }
+            }
+
+            if (dataCruda.length === 0) {
+                mensajeCarga.textContent = "No hay registros disponibles en la base de datos actualmente.";
+                return;
+            }
+
+            let pagosCrudos = dataCruda.filter(item => item.no_pedido !== "VIP_DATA");
+            window.gestionesVIPCrudas = dataCruda.filter(item => item.no_pedido === "VIP_DATA");
+
+            const clientesQuePagaron = new Set();
+            pagosCrudos.forEach(item => {
+                let tip = String(item.tipificacion || "").toUpperCase();
+                if (tip.includes("YA PAGO") || tip.includes("PAGO REGISTRADO")) {
+                    clientesQuePagaron.add(String(item.dni_cliente).trim());
+                }
+            });
+
+            dbData = pagosCrudos.map(item => {
+                const dni = String(item.dni_cliente || "").trim();
+                let yaPagoGlobal = clientesQuePagaron.has(dni);
+
+                return {
+                    asesor: String(item.asesor || "Sin Asesor").trim(),
+                    dni_cliente: item.dni_cliente,
+                    cliente: item.persona,
+                    monto_pagado: item.valor_pagamento, 
+                    tipificacion: item.tipificacion,
+                    observacion: item.observacion,
+                    fecha_ingreso: formatearFecha(item.fecha_ingreso),
+                    fecha_pago: formatearFecha(item.fecha_pago),
+                    medio_pago: item.entidad,
+                    tramo: item.tramo,
+                    es_duplicado: item.es_duplicado === true || item.es_duplicado === 'true',
+                    cliente_ya_pago: yaPagoGlobal
+                };
+            });
+
+            dbData.sort((a, b) => String(a.dni_cliente).localeCompare(String(b.dni_cliente)));
+
+            let todosLosAsesores = [...dbData.map(item => String(item.asesor).trim()), ...window.gestionesVIPCrudas.map(item => String(item.asesor).trim())];
+            const asesoresUnicos = [...new Set(todosLosAsesores)].filter(a => a && a !== "").sort();
+
+            if(asesoresUnicos.length === 0) {
+                mensajeCarga.textContent = "La base de datos tiene registros, pero sin asesores asignados.";
+                return;
+            }
+
+            mensajeCarga.style.display = 'none'; 
+            gridAsesores.innerHTML = '';
+            
+            asesoresUnicos.forEach(asesor => {
+                const card = document.createElement('div');
+                card.className = 'tarjeta-asesor';
+                card.innerHTML = `
+                    <div class="icono-usuario">👤</div>
+                    <h3>${asesor}</h3>
+                `;
+                card.onclick = () => abrirPanelAsesor(asesor);
+                gridAsesores.appendChild(card);
+            });
+
+        } catch (error) {
+            console.error("Error:", error);
+            mensajeCarga.textContent = "Error al intentar conectar con la base de datos. Verifica tu conexión.";
+            mensajeCarga.style.color = "red";
+        }
+    }
+
+    function abrirPanelAsesor(nombreAsesor) {
+        document.getElementById('vista-asesores').style.display = 'none';
+        document.getElementById('vista-dashboard').style.display = 'block';
+        document.getElementById('btn-volver').style.display = 'inline-block';
+        document.getElementById('titulo-seccion').textContent = `Gestión de: ${nombreAsesor}`;
+
+        document.querySelectorAll('.tab')[0].click();
+
+        datosAsesorActual = dbData.filter(item => item.asesor === nombreAsesor);
+        datosFiltradosActuales = [...datosAsesorActual]; 
+        
+        generarFiltros(datosAsesorActual);
+        
+        if (columnaOrdenIndex) {
+            ordenarArrayIndex(datosFiltradosActuales, columnaOrdenIndex, ordenAscendenteIndex);
+        }
+        
+        renderizarTablaYRecaudo(datosFiltradosActuales);
+        procesarSeguimientoVIPAsesor(nombreAsesor);
+    }
+
+    function obtenerAsesorPrincipal(gestiones) {
+        if(gestiones.length === 0) return "Sin Gestión";
+        let conteo = {}; let max = 0; let asesor = "No definido";
+        gestiones.forEach(g => {
+            let a = String(g.asesor || "No definido").trim();
+            conteo[a] = (conteo[a] || 0) + 1;
+            if(conteo[a] > max) { max = conteo[a]; asesor = a; }
+        });
+        return asesor;
+    }
+
+    function procesarSeguimientoVIPAsesor(nombreAsesor) {
+        const tzOffset = (new Date()).getTimezoneOffset() * 60000;
+        const fechaHoyFormato = (new Date(Date.now() - tzOffset)).toISOString().split('T')[0]; 
+
+        const tbodyVIP = document.getElementById('tableBodySeguimientoAsesor');
+        tbodyVIP.innerHTML = '';
+        const fragmentVIP = document.createDocumentFragment();
+
+        let vipsDelAsesor = 0;
+
+        clientesVIP.forEach(vip => {
+            let dniNormalizado = String(vip.dni).trim();
+            let nomNormalizado = String(vip.nombre).trim().toUpperCase();
+
+            let gestionesCliente = window.gestionesVIPCrudas.filter(g => {
+                let d = String(g.dni_cliente || "").trim();
+                let n = String(g.persona || "").trim().toUpperCase();
+                if (dniNormalizado && d === dniNormalizado) return true;
+                if (nomNormalizado && n.includes(nomNormalizado)) return true;
+                return false;
+            });
+
+            if (gestionesCliente.length > 0) {
+                let asesorPrincipal = obtenerAsesorPrincipal(gestionesCliente);
+
+                if (asesorPrincipal === nombreAsesor) {
+                    vipsDelAsesor++;
+
+                    let llamadasDia = {};
+                    gestionesCliente.forEach(g => {
+                        let f = formatearFecha(g.fecha_ingreso);
+                        if(f) llamadasDia[f] = (llamadasDia[f] || 0) + 1;
+                    });
+                    
+                    let txtLlamadasHtml = Object.keys(llamadasDia).sort((a,b)=>b.localeCompare(a))
+                        .map(k => `<b>${k}:</b> ${llamadasDia[k]} llam.`).join("<br>") || "Sin llamadas";
+
+                    let tipos = [...new Set(gestionesCliente.map(g => g.tipificacion || "Sin Tipificación"))].filter(t => t);
+                    let txtTiposHtml = tipos.join(",<br>") || "Sin registros";
+
+                    let tienePDP = tipos.some(t => String(t).toUpperCase().includes("PROMESA") || String(t).toUpperCase().includes("PDP"));
+                    let htmlPDP = tienePDP ? `<span class="badge-pdp">SÍ TIENE</span>` : `<span style="color:#888;">No</span>`;
+
+                    let txtPagoHtml = "No hay pagos";
+                    
+                    let pagosCliente = dbData.filter(p => {
+                        let d = String(p.dni_cliente || "").trim();
+                        let n = String(p.persona || "").trim().toUpperCase();
+                        if (dniNormalizado && d === dniNormalizado) return true;
+                        if (nomNormalizado && n.includes(nomNormalizado)) return true;
+                        return false;
+                    }).filter(p => parseFloat(p.monto_pagado) > 0);
+
+                    if(pagosCliente.length > 0) {
+                        const uniquePagos = [];
+                        const keys = new Set();
+                        pagosCliente.forEach(p => {
+                            let key = `${p.monto_pagado}_${p.fecha_pago}`;
+                            if (!keys.has(key)) {
+                                keys.add(key);
+                                uniquePagos.push(p);
+                            }
+                        });
+
+                        txtPagoHtml = uniquePagos.map(p => {
+                            let m = p.monto_pagado;
+                            let f = p.fecha_pago;
+                            return `<span style="color:green; font-weight:bold;">S/ ${parseFloat(m).toFixed(2)}</span> (${f})`;
+                        }).join("<br>");
+                    }
+
+                    let gestionadoHoy = llamadasDia[fechaHoyFormato] ? true : false;
+                    let htmlEstado = gestionadoHoy 
+                        ? `<span style="color:green; font-weight:bold;">✓ Gestionado Hoy</span>` 
+                        : `<span class="badge-alerta">⚠️ SIN GESTIÓN HOY</span>`;
+
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td><span class="badge-grupo">${vip.grupo}</span></td>
+                        <td>${vip.dni || "N/A"}</td>
+                        <td><b>${vip.nombre}</b></td>
+                        <td style="font-size:11px;">${txtLlamadasHtml}</td>
+                        <td style="font-size:11px;">${txtTiposHtml}</td>
+                        <td>${htmlPDP}</td>
+                        <td>${txtPagoHtml}</td>
+                        <td>${htmlEstado}</td>
+                    `;
+                    fragmentVIP.appendChild(tr);
+                }
+            }
+        });
+
+        if (vipsDelAsesor === 0) {
+            tbodyVIP.innerHTML = `<tr><td colspan="8" style="text-align:center;">No tienes clientes TOP o Prioritarios asignados.</td></tr>`;
+        } else {
+            tbodyVIP.appendChild(fragmentVIP);
+        }
+    }
+
+
+    function generarFiltros(datos) {
+        const fechas = new Set(), tipificaciones = new Set(), tramos = new Set();
+        datos.forEach(item => {
+            if (item.fecha_pago) fechas.add(item.fecha_pago);
+            if (item.tipificacion) tipificaciones.add(item.tipificacion);
+            if (item.tramo) tramos.add(item.tramo);
+        });
+        
+        llenarSelect('filtroFecha', fechas, 'Todas las Fechas');
+        llenarSelect('filtroTipificacion', tipificaciones, 'Todas las Tipificaciones');
+        
+        const contenedorTramos = document.getElementById('opcionesTramo');
+        contenedorTramos.innerHTML = `
+            <label class="option-label" style="font-weight:bold; background:#e9ecef;">
+                <input type="checkbox" id="chkTodosTramos" onchange="toggleTodosTramos(this)"> (Seleccionar Todos)
+            </label>
+        `;
+        Array.from(tramos).sort().forEach(tramo => {
+            const lbl = document.createElement('label');
+            lbl.className = 'option-label';
+            lbl.innerHTML = `<input type="checkbox" class="chk-tramo" value="${tramo}" onchange="aplicarFiltrosAsesor()"> ${tramo}`;
+            contenedorTramos.appendChild(lbl);
+        });
+        document.getElementById('selectBoxTramo').innerHTML = `Tramos: Todos <span>▼</span>`;
+    }
+
+    function llenarSelect(idElemento, setValores, textoDefault) {
+        const select = document.getElementById(idElemento);
+        select.innerHTML = `<option value="">${textoDefault}</option>`;
+        Array.from(setValores).sort().forEach(valor => {
+            const option = document.createElement('option');
+            option.value = valor; option.textContent = valor; select.appendChild(option);
+        });
+    }
+
+    function aplicarFiltrosAsesor() {
+        const valDNI = document.getElementById('filtroDNI').value.trim().toLowerCase();
+        const valFecha = document.getElementById('filtroFecha').value;
+        const valTipificacion = document.getElementById('filtroTipificacion').value;
+
+        const tramosSeleccionados = Array.from(document.querySelectorAll('.chk-tramo:checked')).map(cb => cb.value);
+        const totalTramos = document.querySelectorAll('.chk-tramo').length;
+        const boxTramo = document.getElementById('selectBoxTramo');
+        
+        if (tramosSeleccionados.length === 0 || tramosSeleccionados.length === totalTramos) {
+            boxTramo.innerHTML = `Tramos: Todos <span>▼</span>`;
+        } else {
+            boxTramo.innerHTML = `Tramos: ${tramosSeleccionados.length} selec. <span>▼</span>`;
+        }
+
+        datosFiltradosActuales = datosAsesorActual.filter(item => {
+            const matchDNI = valDNI === "" || String(item.dni_cliente).toLowerCase().includes(valDNI) || String(item.cliente).toLowerCase().includes(valDNI);
+            const matchFecha = valFecha === "" || item.fecha_pago === valFecha;
+            const matchTip = valTipificacion === "" || item.tipificacion === valTipificacion;
+            const matchTramo = tramosSeleccionados.length === 0 || tramosSeleccionados.length === totalTramos || tramosSeleccionados.includes(item.tramo);
+            
+            return matchDNI && matchFecha && matchTip && matchTramo;
+        });
+
+        if (columnaOrdenIndex) {
+            ordenarArrayIndex(datosFiltradosActuales, columnaOrdenIndex, ordenAscendenteIndex);
+        }
+
+        renderizarTablaYRecaudo(datosFiltradosActuales);
+    }
+
+    function ordenarAsesor(columna) {
+        if (columnaOrdenIndex === columna) {
+            ordenAscendenteIndex = !ordenAscendenteIndex;
+        } else {
+            columnaOrdenIndex = columna;
+            ordenAscendenteIndex = true;
+        }
+
+        const columnas = ['dni_cliente', 'cliente', 'monto_pagado', 'tipificacion', 'observacion', 'fecha_ingreso', 'fecha_pago', 'medio_pago', 'tramo'];
+        columnas.forEach(col => {
+            let span = document.getElementById('sort_' + col);
+            if (span) span.textContent = "";
+        });
+        
+        document.getElementById('sort_' + columna).textContent = ordenAscendenteIndex ? " ▲" : " ▼";
+
+        ordenarArrayIndex(datosFiltradosActuales, columnaOrdenIndex, ordenAscendenteIndex);
+        renderizarTablaYRecaudo(datosFiltradosActuales);
+    }
+
+    function ordenarArrayIndex(array, col, asc) {
+        array.sort((a, b) => {
+            let valA = a[col] !== undefined && a[col] !== null ? a[col] : "";
+            let valB = b[col] !== undefined && b[col] !== null ? b[col] : "";
+
+            if (col === 'monto_pagado') {
+                valA = parseFloat(valA) || 0;
+                valB = parseFloat(valB) || 0;
+                return asc ? valA - valB : valB - valA;
+            }
+
+            valA = String(valA).toLowerCase();
+            valB = String(valB).toLowerCase();
+
+            if (valA < valB) return asc ? -1 : 1;
+            if (valA > valB) return asc ? 1 : -1;
+            return 0;
+        });
+    }
+
+    function renderizarTablaYRecaudo(datos) {
+        const tableBody = document.getElementById('tableBody');
+        tableBody.innerHTML = '';
+        let total = 0;
+        const fragment = document.createDocumentFragment();
+        
+        let currentDNI = null;
+        let colorToggle = false;
+        const pagosSumados = new Set();
+
+        const displayLimit = datos.length; 
+
+        for (let i = 0; i < displayLimit; i++) {
+            const item = datos[i];
+            const monto = parseFloat(item.monto_pagado) || 0;
+            
+            if (!item.es_duplicado) {
+                const dedupeKey = `${item.dni_cliente}_${monto.toFixed(2)}`;
+                if (!pagosSumados.has(dedupeKey)) {
+                    pagosSumados.add(dedupeKey);
+                    total += monto;
+                }
+            }
+
+            const tr = document.createElement('tr');
+            
+            if (item.dni_cliente !== currentDNI) {
+                currentDNI = item.dni_cliente;
+                colorToggle = !colorToggle;
+                tr.style.borderTop = "3px solid var(--primary-color)"; 
+            }
+            tr.style.backgroundColor = colorToggle ? "#ffffff" : "#f0f7ff";
+
+            let marcaRoja = "";
+            let fIngreso = item.fecha_ingreso || "";
+            let fPago = item.fecha_pago || "";
+
+            if (fIngreso && fPago && fIngreso > fPago) {
+                marcaRoja = `<span class="alerta-pago">Pago después de registro</span>`;
+            }
+            
+            let badgeDuplicado = item.es_duplicado ? `<span class="badge-duplicado">DUPLICADO</span>` : "";
+            
+            let obsText = item.observacion || "";
+            let alertaEtiqueta = "";
+
+            if (String(obsText).toLowerCase().includes("consultor")) {
+                if (item.cliente_ya_pago) {
+                    alertaEtiqueta = `<span class="alerta-ya-pago">Pago ya registrado</span>`;
+                } else {
+                    alertaEtiqueta = `<span class="alerta-consultor">Puede registrar el pago si está en fechas correctas, pero que valide en geincos.</span>`;
+                }
+            }
+
+            tr.innerHTML = `
+                <td>${item.dni_cliente || ''}</td>
+                <td>${item.cliente || ''}</td>
+                <td style="color:#155724; background-color:#d4edda; font-weight:bold; text-align:center;">S/ ${monto > 0 ? monto.toFixed(2) : '0.00'} ${badgeDuplicado}</td>
+                <td>${item.tipificacion || ''}</td>
+                <td>${obsText} ${alertaEtiqueta}</td>
+                <td>${fIngreso}</td>
+                <td>${fPago} ${marcaRoja}</td>
+                <td>${item.medio_pago || ''}</td>
+                <td>${item.tramo || ''}</td>
+            `;
+            fragment.appendChild(tr);
+        }
+
+        tableBody.appendChild(fragment);
+        document.getElementById('totalRecaudo').textContent = 'S/ ' + total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function exportarExcelAsesor() {
+        if (!datosFiltradosActuales || datosFiltradosActuales.length === 0) {
+            alert("No hay datos para exportar.");
+            return;
+        }
+        
+        const exportData = datosFiltradosActuales.map(item => ({
+            "DNI Cliente": item.dni_cliente,
+            "Cliente": item.cliente,
+            "Monto Pagado": item.monto_pagado,
+            "Tipificación": item.tipificacion,
+            "Observación": item.observacion,
+            "Fecha Ingreso": item.fecha_ingreso,
+            "Fecha Pago": item.fecha_pago,
+            "Medio de Pago": item.medio_pago,
+            "Tramo": item.tramo
+        }));
+
+        const ws = XLSX.utils.json_to_sheet(exportData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Mis Gestiones y Pagos");
+        XLSX.writeFile(wb, "Mis_Gestiones_Asesor.xlsx");
+    }
+
+    function volverAInicio() {
+        document.getElementById('vista-dashboard').style.display = 'none';
+        document.getElementById('vista-asesores').style.display = 'block';
+        document.getElementById('btn-volver').style.display = 'none';
+        document.getElementById('titulo-seccion').textContent = 'Portal de Gestión de Asesores';
+        
+        document.getElementById('filtroDNI').value = "";
+        document.getElementById('filtroFecha').value = "";
+        document.getElementById('filtroTipificacion').value = "";
+        
+        const checkboxes = document.querySelectorAll('.chk-tramo');
+        checkboxes.forEach(cb => cb.checked = false);
+        const btnTodos = document.getElementById('chkTodosTramos');
+        if(btnTodos) btnTodos.checked = false;
+        
+        document.getElementById('selectBoxTramo').innerHTML = `Tramos: Todos <span>▼</span>`;
+    }
+</script>
+
+</body>
+</html>
